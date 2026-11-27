@@ -6,7 +6,7 @@ const pagesOrigin = 'https://technodahadera.github.io';
 const apiOrigin = location.origin === pagesOrigin ? 'https://technoda-hanukkah-quiz.workspace-022996.chatgpt.site' : '';
 const assetsUrl = location.origin === pagesOrigin ? quizUrl : new URL('/technoda-hanukkah-quiz/',pagesOrigin);
 const musicUrl = new URL('answer-music.mp3',assetsUrl);
-const roundSeconds = 30;
+const roundSeconds = 15;
 const artwork = Array.from({length:3},(_,i) => new URL('question-art-' + (i+1) + '.webp',assetsUrl));
 const currentUrl = new URL(location.href);
 const requestedPlay = currentUrl.searchParams.get('play') ?? '';
@@ -142,7 +142,7 @@ function setup(failure = '') {
   clearInterval(clock);
   const hero = node('section','hero');
   const copy = node('div','hero-copy');
-  copy.append(node('h1','','חידון חנוכה'),node('p','muted','27 שאלות · 30 שניות לכל שאלה'));
+  copy.append(node('h1','','חידון חנוכה'),node('p','muted','27 שאלות · ' + roundSeconds + ' שניות לכל שאלה'));
   const art = node('div','hero-art');
   art.setAttribute('aria-hidden','true');
   const lights = node('div','lights');

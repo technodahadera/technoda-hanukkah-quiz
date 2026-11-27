@@ -1,4 +1,4 @@
-const ROUND_MS = 30_000;
+const ROUND_MS = 15_000;
 const ROOM_MS = 4 * 60 * 60 * 1000;
 const MAX_PLAYERS = 500;
 const randomToken = () => crypto.randomUUID();
@@ -130,7 +130,7 @@ async function advance(db,code,saved,room,data) {
   if (room.index !== data.index) return;
   const now = Date.now();
   const phase = phaseAt(room,now);
-  if (phase !== 'lobby' && phase !== 'reveal') message('ממתינים לסיום 30 השניות.',409);
+  if (phase !== 'lobby' && phase !== 'reveal') message('ממתינים לסוף זמן המענה.',409);
   if (phase === 'lobby') {
     const player = await db.prepare('SELECT 1 AS present FROM quiz_players WHERE code=? LIMIT 1').bind(code).first();
     if (!player) message('צריך לפחות משתתף אחד כדי להתחיל.',409);
@@ -139,7 +139,8 @@ async function advance(db,code,saved,room,data) {
   if (room.index + 1 < questions.length) {
     room.index++;
     room.phase = 'question';
-    room.ends = now + ROUND_MS;
+    room.roundMs = ROUND_MS;
+    room.ends = now + room.roundMs;
   } else {
     room.phase = 'done';
     room.ranking = await getRanking(db,code,10);
@@ -154,7 +155,7 @@ async function submit(db,code,saved,room,data,receivedAt) {
   if (!Number.isInteger(choice) || choice < 0 || choice >= questions[data.index].choices.length) message('בחירה לא תקינה.');
   if (room.index === data.index && phaseAt(room,receivedAt) === 'question') {
     const points = room.key[room.index].includes(choice)
-      ? Math.round(500 + 500 * Math.min(1,(room.ends - receivedAt) / ROUND_MS))
+      ? Math.round(500 + 500 * Math.min(1,(room.ends - receivedAt) / (room.roundMs ?? 30_000)))
       : 0;
     const result = await db.prepare(`
       INSERT OR IGNORE INTO quiz_answers(code,token,round,choice,points)
