@@ -1318,6 +1318,7 @@ let audioTrack;
 let trackRound;
 let muted = false;
 let musicButton;
+let cachedQr;
 
 function prepareMusic() {
   if (muted) return;
@@ -1419,11 +1420,12 @@ function saveSession(info) {
 }
 function stopSession() {
   stopMusic();
-  musicButton.hidden = true;
   clearTimeout(poll);
   clearInterval(clock);
   session = undefined;
   state = undefined;
+  pendingChoice = null;
+  connectionIssue = '';
   try { sessionStorage.removeItem(storageKey); } catch { /* storage can be unavailable */ }
 }
 function setup(failure = '') {
@@ -1568,10 +1570,11 @@ async function refresh() {
   try {
     const data = await api('state',active);
     if (session !== active) return;
-    acceptState(data.state);
+    if (data.code && data.code !== active.code) activateReplacement(data);
+    else acceptState(data.state);
   } catch (error) {
     if (session !== active) return;
-    if ([401,404].includes(error.status)) {
+    if ([401,404,410].includes(error.status)) {
       stopSession();
       setup(errorText(error));
       return;
@@ -1579,7 +1582,31 @@ async function refresh() {
     if (!connectionIssue) setStatus(errorText(error));
     connectionIssue = errorText(error);
   }
-  if (session === active && (state?.phase !== 'done' || connectionIssue)) poll = setTimeout(refresh,1150);
+  if (session === active && (state?.phase !== 'done' || connectionIssue)) {
+    const baseDelay = active.role === 'host' ? 1100 : 1750;
+    const spread = active.role === 'host' ? 250 : 1100;
+    poll = setTimeout(refresh,baseDelay + Math.random()*spread);
+  }
+}
+function activateReplacement(data) {
+  stopSession();
+  saveSession({code:data.code,token:data.token,role:'host'});
+  acceptState(data.state);
+  refresh();
+}
+async function startNewGame() {
+  if (busy || !confirm('להתחיל משחק חדש ולאפס את הניקוד? המשתתפים יצטרכו לסרוק QR חדש.')) return;
+  busy = true;
+  const active = session;
+  setStatus('פותחים משחק חדש…');
+  try {
+    const data = await api('restart',active);
+    if (session === active) activateReplacement(data);
+  } catch (error) {
+    if (session === active) setStatus(errorText(error));
+  } finally {
+    busy = false;
+  }
 }
 function setStatus(text) {
   if (status) status.textContent = text;
@@ -1627,7 +1654,7 @@ function render(shouldFocus) {
   status.setAttribute('role','status');
   const screen = node('section','card stack');
   const isHost = session.role === 'host';
-  musicButton.hidden = !isHost;
+  musicButton.hidden = joinPage;
   let heading;
   if (state.phase === 'lobby') {
     heading = node('h1','',isHost ? 'מצטרפים למשחק' : 'הצטרפת למשחק!');
@@ -1648,12 +1675,14 @@ function render(shouldFocus) {
     stopSession();
     setup();
   },'subtle'));
+  if (isHost) footer.append(button('משחק חדש ואיפוס תוצאות',startNewGame,'subtle'));
   if (!isHost && state.phase !== 'lobby') footer.append(node('p','muted',state.name + ' · ' + state.score + ' נקודות'));
   screen.append(status,footer);
   app.replaceChildren(screen);
   if (shouldFocus) focus(heading);
 }
 function createQr(url) {
+  if (cachedQr?.url === url) return cachedQr.canvas;
   const qr = new QRCode(-1,0);
   qr.addData(url);
   qr.make();
@@ -1673,12 +1702,17 @@ function createQr(url) {
       if (qr.isDark(row,col)) context.fillRect((col+padding)*scale,(row+padding)*scale,scale,scale);
     }
   }
+  cachedQr = {url,canvas};
   return canvas;
+}
+function inviteUrl() {
+  const url = new URL(quizUrl);
+  url.searchParams.set('play',session.code);
+  return url;
 }
 function lobby(screen) {
   screen.classList.add('lobby');
-  const joinUrl = new URL(quizUrl);
-  joinUrl.searchParams.set('play',session.code);
+  const joinUrl = inviteUrl();
   const share = node('div','actions');
   const joinLink = link('קישור להצטרפות',joinUrl.href);
   joinLink.target = '_blank';
@@ -1691,6 +1725,7 @@ function lobby(screen) {
   },'subtle'));
   const players = node('div','scoreline');
   state.names.forEach(name => players.append(node('span','chip',name)));
+  if (state.players > state.names.length) players.append(node('span','chip','ועוד ' + (state.players-state.names.length)));
   const start = button('התחלת משחק',() => send('advance',{}),'primary');
   start.disabled = state.players === 0;
   const overview = node('div','join-lobby');
@@ -1772,6 +1807,15 @@ function showRound(screen,isHost) {
   if (!revealed) screen.append(track);
   const prompt = node('div','question-layout');
   prompt.append(heading,questionArtwork(state.index));
+  if (isHost) {
+    const lateInvite = node('a','late-invite');
+    lateInvite.href = inviteUrl();
+    lateInvite.target = '_blank';
+    lateInvite.rel = 'noopener';
+    lateInvite.append(createQr(lateInvite.href),node('span','','מצטרפים בסריקה'));
+    prompt.classList.add('has-invite');
+    prompt.append(lateInvite);
+  }
   screen.append(prompt,grid);
   if (!revealed) {
     if (state.pick != null) screen.append(node('p','muted','התשובה נשלחה. ממתינים לסיום הזמן.'));
@@ -1803,7 +1847,7 @@ musicButton = button('השתקת מוזיקה',() => {
   if (muted) stopMusic();
   else prepareMusic();
 },'subtle');
-musicButton.hidden = true;
+musicButton.hidden = joinPage;
 fullscreen.before(musicButton);
 if (!document.fullscreenEnabled || joinPage) fullscreen.hidden = true;
 fullscreen.addEventListener('click',async () => {

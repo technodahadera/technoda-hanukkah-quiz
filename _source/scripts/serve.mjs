@@ -5,7 +5,10 @@ import { DatabaseSync } from 'node:sqlite';
 await import('./build.mjs');
 const {default:worker} = await import('../dist/server/index.js');
 const database = new DatabaseSync(':memory:');
-database.exec(await readFile(new URL('../drizzle/0000_quiz_rooms.sql',import.meta.url),'utf8'));
+database.exec('PRAGMA foreign_keys=ON');
+for (const file of ['0000_quiz_rooms.sql','0001_quiz_participants.sql']) {
+  database.exec(await readFile(new URL('../drizzle/'+file,import.meta.url),'utf8'));
+}
 const DB = {
   prepare(sql) {
     const statement = database.prepare(sql);
@@ -13,10 +16,23 @@ const DB = {
       bind(...values) {
         return {
           first: async () => statement.get(...values),
+          all: async () => ({results:statement.all(...values)}),
+          exec: () => ({meta:statement.run(...values)}),
           run: async () => ({meta:statement.run(...values)})
         };
       }
     };
+  },
+  async batch(statements) {
+    database.exec('BEGIN');
+    try {
+      const results = statements.map(statement => statement.exec());
+      database.exec('COMMIT');
+      return results;
+    } catch (error) {
+      database.exec('ROLLBACK');
+      throw error;
+    }
   }
 };
 

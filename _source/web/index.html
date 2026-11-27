@@ -41,6 +41,11 @@ label{display:grid;gap:8px;font-weight:700}input,select{color:var(--ink);backgro
 .question-art{width:100%;aspect-ratio:1;background-size:300% 300%;background-repeat:no-repeat;border-radius:20px;border:1px solid #9583af;box-shadow:0 8px 22px #130e27;overflow:hidden;background-color:#3c2e59}
 .player-question .question-layout{grid-template-columns:minmax(0,1fr) clamp(90px,20vw,150px);min-height:90px}
 @media(max-width:650px){.question-layout,.player-question .question-layout{grid-template-columns:minmax(0,1fr) clamp(82px,23vw,115px);min-height:82px}.question-art{border-radius:12px}.question-layout .prompt{font-size:clamp(1.18rem,4.8vw,1.55rem)}}
+
+.question-layout.has-invite{grid-template-columns:minmax(0,1fr) clamp(100px,18vw,220px) clamp(95px,14vw,148px)}
+.late-invite{display:grid;justify-items:center;gap:7px;color:var(--gold);font-weight:800;text-align:center;text-decoration:none;font-size:.86rem}
+.late-invite .qr-canvas{width:100%;border-radius:9px}
+@media(max-width:560px){.question-layout.has-invite{grid-template-columns:minmax(0,1fr) 84px}.has-invite .late-invite{grid-column:2;grid-row:2}}
 </style>
 </head>
 <body>
