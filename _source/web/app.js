@@ -4,8 +4,10 @@ const storageKey = 'technoda-hanukkah-live-session';
 const quizUrl = new URL('./',document.currentScript.src);
 const pagesOrigin = 'https://technodahadera.github.io';
 const apiOrigin = location.origin === pagesOrigin ? 'https://technoda-hanukkah-quiz.workspace-022996.chatgpt.site' : '';
-const musicUrl = new URL('answer-music.mp3',location.origin === pagesOrigin
-  ? quizUrl : pagesOrigin + '/technoda-hanukkah-quiz/');
+const assetsUrl = location.origin === pagesOrigin ? quizUrl : new URL('/technoda-hanukkah-quiz/',pagesOrigin);
+const musicUrl = new URL('answer-music.mp3',assetsUrl);
+const roundSeconds = 30;
+const artwork = Array.from({length:3},(_,i) => new URL('question-art-' + (i+1) + '.webp',assetsUrl));
 const currentUrl = new URL(location.href);
 const requestedPlay = currentUrl.searchParams.get('play') ?? '';
 const joinPage = location.pathname === '/join' || currentUrl.searchParams.has('play');
@@ -61,15 +63,16 @@ function syncMusic() {
   void audioBuffer.then(buffer => {
     if (!buffer || muted || active !== session || state?.phase !== 'question' ||
         state.index !== index || trackRound === index || audioContext.state !== 'running') return;
-    const seconds = Math.min(30,(state.ends-Date.now()-offset)/1000);
+    const seconds = Math.min(roundSeconds,(state.ends-Date.now()-offset)/1000);
     if (seconds <= 0) return;
     stopMusic();
     trackRound = index;
     const track = audioContext.createBufferSource();
     track.buffer = buffer;
-    track.loop = buffer.duration < 30;
+    track.loop = true;
     track.connect(audioContext.destination);
-    track.start(0,(30-seconds) % buffer.duration);
+    const played = index * roundSeconds + (roundSeconds - seconds);
+    track.start(0,played % buffer.duration);
     track.stop(audioContext.currentTime + seconds);
     track.onended = () => {
       if (audioTrack === track) audioTrack = undefined;
@@ -325,7 +328,7 @@ function remaining() {
 function tick(time,bar,answerGrid) {
   const value = remaining();
   time.textContent = value ? value + ' שניות' : 'הזמן נגמר';
-  bar.style.width = (value/30*100) + '%';
+  bar.style.width = (value/roundSeconds*100) + '%';
   if (!value) answerGrid.querySelectorAll('button').forEach(control => { control.disabled = true; });
 }
 function render(shouldFocus) {
@@ -416,6 +419,14 @@ function ranking(entries) {
   }
   return list;
 }
+function questionArtwork(index) {
+  const image = node('div','question-art');
+  const cell = index % 9;
+  image.setAttribute('aria-hidden','true');
+  image.style.backgroundImage = 'url("' + artwork[Math.floor(index/9)] + '")';
+  image.style.backgroundPosition = (cell % 3) * 50 + '% ' + Math.floor(cell/3) * 50 + '%';
+  return image;
+}
 function showRound(screen,isHost) {
   const revealed = state.phase === 'reveal';
   const q = state.question;
@@ -469,7 +480,9 @@ function showRound(screen,isHost) {
   screen.classList.toggle('player-question',!isHost);
   screen.append(meta);
   if (!revealed) screen.append(track);
-  screen.append(heading,grid);
+  const prompt = node('div','question-layout');
+  prompt.append(heading,questionArtwork(state.index));
+  screen.append(prompt,grid);
   if (!revealed) {
     if (state.pick != null) screen.append(node('p','muted','התשובה נשלחה. ממתינים לסיום הזמן.'));
     if (pendingChoice !== null) screen.append(node('p','muted','שולחים את התשובה…'));
@@ -518,4 +531,6 @@ try {
       (!hostPage || saved.role === 'host')) session = saved;
 } catch { /* start a new session */ }
 setup();
+const firstArtwork = new Image();
+firstArtwork.src = artwork[0];
 if (session) refresh();

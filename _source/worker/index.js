@@ -161,7 +161,7 @@ async function getBody(request) {
 
 const noStore = {'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'};
 const pageHeaders = {...noStore,'Content-Security-Policy':
-  "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' https://technodahadera.github.io; frame-ancestors 'self'; base-uri 'none'; form-action 'self'"};
+  "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://technodahadera.github.io; media-src 'self' https://technodahadera.github.io; frame-ancestors 'self'; base-uri 'none'; form-action 'self'"};
 
 export default {
   async fetch(request,env) {
